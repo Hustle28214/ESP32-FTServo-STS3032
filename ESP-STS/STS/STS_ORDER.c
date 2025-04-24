@@ -73,7 +73,7 @@ void DIGITS16_TO_DIGITS8(uint8_t *_dataL,uint8_t *_dataH, uint16_t _digits16){
 
 // 2 * 8 digits combined to 16 digits
 
-void DIGITS8_TO_DIGITS16(uint8_t _dataL,uint8_t _dataH, uint8_t _digits8){
+int DIGITS8_TO_DIGITS16(uint8_t _dataL,uint8_t _dataH){
    
     uint16_t digits16;
     if(End) // BIG End, data addr : high to low
@@ -205,7 +205,7 @@ void WRITE_WORD(uint8_t ID,uint8_t _Addr,uint16_t WordDat){
     return Ack(ID);
 }
 
-void OrdinaryRead(uint8_t ID,uint8_t _Addr, uint8_t *Dat, uint8_t _Len){
+int OrdinaryRead(uint8_t ID,uint8_t _Addr, uint8_t *Dat, uint8_t _Len){
     //
     
     int ReadSize = 0;
@@ -214,36 +214,36 @@ void OrdinaryRead(uint8_t ID,uint8_t _Addr, uint8_t *Dat, uint8_t _Len){
      // SerialBusDelay();
     MSGBUF_WRITE(ID, _Addr,&_Len,1,STS_INST_READ);
      // SerialBusDelay();
-    uint8_t Status = 0;
+    servo_status = 0;
     if(!HeadCheck()){
-        Status = STS_ERR_NO_REPLY;
+        servo_status = STS_ERR_NO_REPLY;
         return 0;
     }
-    uint8_t Error = 0;
+    uint8_t servo_error = 0;
     // TODO: Add SerialBusRead()
     if(SerialBusRead(_MsgBuffer,3)!=3){
-        Error = STS_ERR_NO_REPLY;
+        servo_error = STS_ERR_NO_REPLY;
         return 0;
     }
     if (_MsgBuffer[0]!=ID && ID!=0xfe)
     {
         // it means slave servo id is incorrect
-        Error = STS_ERR_SLAVE_ID;
+        servo_error = STS_ERR_SLAVE_ID;
         return 0;
     }
     if (_MsgBuffer[1]!=_Len + 2)
     {
         /* code */
-        Error = STS_ERR_BUFFER_LEN;
+        servo_error = STS_ERR_BUFFER_LEN;
         return 0;
     }
     ReadSize = SerialBusRead(Dat,_Len);
     if(ReadSize!=_Len){
-        Error = STS_ERR_NO_REPLY;
+        servo_error = STS_ERR_NO_REPLY;
         return 0;
     }
     if(SerialBusRead(_MsgBuffer+3,1)!=1){
-        Error = STS_ERR_NO_REPLY;
+        servo_error = STS_ERR_NO_REPLY;
         return 0;
     }
     _CheckSum = _MsgBuffer[0]+_MsgBuffer[1]+_MsgBuffer[2];
@@ -253,11 +253,87 @@ void OrdinaryRead(uint8_t ID,uint8_t _Addr, uint8_t *Dat, uint8_t _Len){
 
     _CheckSum =~_CheckSum;
     if (_CheckSum != _MsgBuffer[3]){
-        Error = STS_ERR_CRC_CMP;
+        servo_error = STS_ERR_CRC_CMP;
         return 0;
     }
-    Status = _MsgBuffer[2];
+    servo_status = _MsgBuffer[2];
     return ReadSize;
 
 }
 
+int ByteRead(uint8_t ID,uint8_t _Addr){
+    uint8_t _ByteDat;
+    int ByteDatSize = OrdinaryRead(ID,_Addr,&_ByteDat,1);
+    if(ByteDatSize!=1){
+        return -1;
+    }// servo_error Check
+    else{
+        return _ByteDat;
+    }
+}
+
+int WordRead(uint8_t ID, uint8_t _Addr){
+    uint8_t Dat[2]; // 2 Byte = 1 Word
+    int WordSize;
+    uint16_t WordDat;
+    WordSize = OrdinaryRead(ID, _Addr, Dat,2);// Size = Read(ID, MemAddr, nDat, 2);
+    if(WordSize!=2){
+        return -1;
+    }
+    WordDat = DIGITS8_TO_DIGITS16(Dat[0],Dat[1]);
+    return WordDat;
+}
+// PING for STS3032
+int PING(uint8_t ID){
+    uint8_t _PingMsgBuffer[4];
+    uint8_t _CheckSum;
+    SerialBusDelay();
+    servo_status = 0;
+    if(!HeadCheck()){
+        servo_error = STS_ERR_NO_REPLY;
+        return -1;
+    }
+    servo_error = 0;
+    if(SerialRead(_PingMsgBuffer, 4)!= 4){
+        servo_error = STS_ERR_NO_REPLY;
+        return -1;
+    }
+    if(_PingMsgBuffer[0]!=ID && ID != 0xfe){
+        servo_error = STS_ERR_SLAVE_ID;
+        return -1;
+    }
+    if(_PingMsgBuffer[1]!=2){
+
+    }
+}
+int HeadCheck(void){
+    uint8_t ByteDat;
+    uint8_t ByteBuffer[2] = {0,0};
+    uint8_t cnt = 0;
+
+    while(1){
+        if(!SerialRead(&ByteDat,1)){
+            return 0;
+        }
+        ByteBuffer[1] = ByteBuffer[0];
+        ByteBuffer[0] = ByteDat;
+        if(ByteBuffer[0] == 0xff && ByteBuffer[1] == 0xff){
+            break;
+        }
+        cnt++;
+        if(cnt>10){
+            return 0;
+        }
+    }
+    return 1;
+}
+
+int Ack(uint8_t ID){
+    uint8_t ByteBuffer[4];
+    uint8_t _CheckSum = 0;
+    servo_error = 0;
+    if(ID!=0xfe && Level){
+        // if current level is
+    }
+
+}
