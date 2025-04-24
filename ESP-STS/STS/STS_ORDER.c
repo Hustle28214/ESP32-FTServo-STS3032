@@ -206,20 +206,58 @@ void WRITE_WORD(uint8_t ID,uint8_t _Addr,uint16_t WordDat){
 }
 
 void OrdinaryRead(uint8_t ID,uint8_t _Addr, uint8_t *Dat, uint8_t _Len){
+    //
+    
     int ReadSize = 0;
     uint8_t _MsgBuffer[4];
+    uint8_t _CheckSum = 0;
      // SerialBusDelay();
-    MSGBUF_WRITE(ID, _Addr,_Len,1,STS_INST_READ);
+    MSGBUF_WRITE(ID, _Addr,&_Len,1,STS_INST_READ);
      // SerialBusDelay();
     uint8_t Status = 0;
     if(!HeadCheck()){
         Status = STS_ERR_NO_REPLY;
-        return -1;
+        return 0;
     }
     uint8_t Error = 0;
-    if()
+    // TODO: Add SerialBusRead()
+    if(SerialBusRead(_MsgBuffer,3)!=3){
+        Error = STS_ERR_NO_REPLY;
+        return 0;
+    }
+    if (_MsgBuffer[0]!=ID && ID!=0xfe)
+    {
+        // it means slave servo id is incorrect
+        Error = STS_ERR_SLAVE_ID;
+        return 0;
+    }
+    if (_MsgBuffer[1]!=_Len + 2)
+    {
+        /* code */
+        Error = STS_ERR_BUFFER_LEN;
+        return 0;
+    }
+    ReadSize = SerialBusRead(Dat,_Len);
+    if(ReadSize!=_Len){
+        Error = STS_ERR_NO_REPLY;
+        return 0;
+    }
+    if(SerialBusRead(_MsgBuffer+3,1)!=1){
+        Error = STS_ERR_NO_REPLY;
+        return 0;
+    }
+    _CheckSum = _MsgBuffer[0]+_MsgBuffer[1]+_MsgBuffer[2];
+    for(int i = 0;i<ReadSize;++i){
+        _CheckSum += Dat[i];
+    }
 
-
-
+    _CheckSum =~_CheckSum;
+    if (_CheckSum != _MsgBuffer[3]){
+        Error = STS_ERR_CRC_CMP;
+        return 0;
+    }
+    Status = _MsgBuffer[2];
+    return ReadSize;
 
 }
+
