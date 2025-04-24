@@ -9,27 +9,27 @@ static uint8_t servo_error;
 
 
 void ORDER_GET_END(uint8_t _End){
-    // GET END SETTINGS
-    END = _End;
-    return END;
+    // GET End SETTINGS
+    End = _End;
+    return End;
 }
 
-bool ORDER_IS_BIG_END(uint8_t _End){
-    // RETURN 1 IF BIG END, 0 IF LITTLE END
-    END = _End;
-    if(END == 0){
-        return false; 
+void ORDER_IS_BIG_END(uint8_t _End){
+    // RETURN 1 IF BIG End, 0 IF LITTLE End
+    End = _End;
+    if(End == 0){
+        return 0; 
     }
-    return true;
+    return 1;
 }
 
-bool ORDER_IS_LITTLE_END(uint8_t _End){
-    // RETURN 1 IF LITTLE END, 0 IF BIG END
-    END = _End;
-    if(END == 1){
-        return false;
+void ORDER_IS_LITTLE_END(uint8_t _End){
+    // RETURN 1 IF LITTLE End, 0 IF BIG End
+    End = _End;
+    if(End == 1){
+        return 0;
     }
-    return true;
+    return 1;
 }
 
 void ORDER_GET_LEVEL(void){
@@ -59,13 +59,13 @@ void DIGITS16_TO_DIGITS8(uint8_t *_dataL,uint8_t *_dataH, uint16_t _digits16){
         return;
     }// Check if pointers are valid
 
-    if(End) // BIG END, data addr : high to low
+    if(End) // BIG End, data addr : high to low
     {
         *_dataL = (uint8_t)(_digits16 >> 8); // dataL
         *_dataH = (uint8_t)(_digits16 & 0xFF); // dataH
     }
     else{
-        // LITTLE END, data addr : low to high
+        // LITTLE End, data addr : low to high
         *_dataL = (uint8_t)(_digits16 & 0xFF); // dataL
         *_dataH = (uint8_t)(_digits16>>8); // dataH
     }
@@ -76,13 +76,13 @@ void DIGITS16_TO_DIGITS8(uint8_t *_dataL,uint8_t *_dataH, uint16_t _digits16){
 void DIGITS8_TO_DIGITS16(uint8_t _dataL,uint8_t _dataH, uint8_t _digits8){
    
     uint16_t digits16;
-    if(End) // BIG END, data addr : high to low
+    if(End) // BIG End, data addr : high to low
     {
-        *digits16 = (uint16_t)((dataH << 8) | dataL);
+        digits16 = (uint16_t)((_dataH << 8) | _dataL);
     }
     else{
-        // LITTLE END, data addr : low to high
-        *digits16 = (uint16_t)((dataL << 8) | dataH);
+        // LITTLE End, data addr : low to high
+        digits16 = (uint16_t)((_dataL << 8) | _dataH);
     }
     return digits16;
 }
@@ -147,15 +147,79 @@ void RegWrite(uint8_t _ID, uint8_t _Addr, uint8_t *_Data, uint8_t _Len){
 void SyncWrite(uint8_t _ID[], uint8_t ID_Num, uint8_t _Addr, uint8_t *_Data, uint8_t _Len){
     // Sync Write Mode, Broadcast Mode, ID = 0xFE
     // Write Data to Servo, ID, Addr, Data, Len
-    uint8_t _MsgLenSync = ;
+    uint8_t _MsgLenSync = ((_Len+1)*ID_Num + 4);
     uint8_t _MsgBufferSync[7]; 
     uint8_t _MsgLenSync = 4;
 
-    
+    _MsgBufferSync[0] = 0xff;
+    _MsgBufferSync[1] = 0xff;
+    _MsgBufferSync[2] = 0xfe;
+    _MsgBufferSync[3] = _MsgLenSync;
+    _MsgBufferSync[4] = STS_INST_SYNC_WRITE;
+    _MsgBufferSync[5] = _Addr;
+    _MsgBufferSync[6] = _Len;
+
+    // TODO: add SerialBusDelay()
+    // TODO: add SerialWrite();
+    SerialBusWrite(_MsgBufferSync, 7);
+    // TODO: add SerialBusDelay()
 
     
 
     uint8_t _CheckSumSync = 0;
 
-    
+    _CheckSumSync = 0xf + _MsgLenSync + STS_INST_SYNC_WRITE + _Addr + _Len;
+
+    for (int i = 0; i< ID_Num; ++i){
+        SerialBusWrite(&_ID[i],1);
+        SerialBusWrite(_Data+i*_Len, _Len);
+        _CheckSumSync += _ID[i];
+        for (int j = 0; j < _Len; j++)
+        {
+            _CheckSumSync += _Data[i*_Len + j];
+        }
+        
+    }
+    _CheckSumSync = ~_CheckSumSync;
+
+    SerialBusWrite(&_CheckSumSync,1);
+
+    SerialBusWrite();
+}
+
+
+void WRITE_BYTE(uint8_t ID, uint8_t _Addr,uint8_t ByteDat){
+    // SerialBusDelay();
+    MSGBUF_WRITE(ID,_Addr,&ByteDat,1,STS_INST_WRITE);
+    // SerialBusDelay();
+    return Ack(ID);
+
+}
+
+void WRITE_WORD(uint8_t ID,uint8_t _Addr,uint16_t WordDat){
+    uint8_t _MsgBuffer[2];
+    DIGITS16_TO_DIGITS8(_MsgBuffer,_MsgBuffer + 1, WordDat );
+    // SerialBusDelay();
+    MSGBUF_WRITE(ID,_Addr,_MsgBuffer,2,STS_INST_WRITE);
+    // SerialBusDelay();
+    return Ack(ID);
+}
+
+void OrdinaryRead(uint8_t ID,uint8_t _Addr, uint8_t *Dat, uint8_t _Len){
+    int ReadSize = 0;
+    uint8_t _MsgBuffer[4];
+     // SerialBusDelay();
+    MSGBUF_WRITE(ID, _Addr,_Len,1,STS_INST_READ);
+     // SerialBusDelay();
+    uint8_t Status = 0;
+    if(!HeadCheck()){
+        Status = STS_ERR_NO_REPLY;
+        return -1;
+    }
+    uint8_t Error = 0;
+    if()
+
+
+
+
 }
